@@ -166,13 +166,40 @@ switch ($machine) { 0x8664 { "64-bit -> Release|x64 + AurieCore.dll" } 0x14C { "
 
 #### 第 2 步：推送（一条命令）
 
-在 `ChroniconSkillMeter` 文件夹的地址栏输入 `cmd` 回车，执行：
+> ⚠️ 最常见的报错：`'push_to_github.bat' 不是内部或外部命令`。原因只是 **cmd 当前目录不对**（工作区是两层目录，容易停在外层），或在 PowerShell 里少了 `.\`。脚本本身在 `ChroniconSkillMeter\` 里，不在外层工作区。
+
+**最省事：用完整路径，从任意目录都能跑。** `Win + R` → 输入 `cmd` 回车，粘贴：
 
 ```bat
+"C:\Users\FIREBAT\WorkBuddy AI\2026-11-09-08-54-10\ChroniconSkillMeter\push_to_github.bat" https://github.com/你的用户名/ChroniconSkillMeter.git
+```
+
+或者先切到项目目录：
+
+```bat
+cd /d "C:\Users\FIREBAT\WorkBuddy AI\2026-11-09-08-54-10\ChroniconSkillMeter"
 push_to_github.bat https://github.com/你的用户名/ChroniconSkillMeter.git
 ```
 
-等价的手写命令：
+PowerShell 里必须带 `.\` 或 `&`：
+
+```powershell
+& "C:\Users\FIREBAT\WorkBuddy AI\2026-11-09-08-54-10\ChroniconSkillMeter\push_to_github.bat" https://github.com/你的用户名/ChroniconSkillMeter.git
+```
+
+**也可以直接双击 `push_to_github.bat`**：没有参数时它会提示你粘贴仓库 URL，跑完会 `pause` 等你按键，不会一闪而过。
+
+推送前只想自检环境（不联网、不推送）：
+
+```bat
+push_to_github.bat --check
+```
+
+自检会打印脚本绝对路径、找到的 `git.exe`、当前分支、remote、最新提交和 workflow 是否存在。
+
+> **本机特别注意：系统 PATH 里没有 `git`**，只有 WorkBuddy 自带的便携版 Git。所以手写 `git remote add ...` 会报 `'git' 不是内部或外部命令`。脚本会自动定位 `C:\Program Files\WorkBuddyAI\resources\vendor\PortableGit\cmd\git.exe`，并临时把 `cmd` 与 `mingw64\bin` 加进 PATH —— 后者是必需的，否则 `git-credential-manager.exe` 会因找不到 `git.exe` 而崩溃，登录窗口弹不出来。**统一用脚本推送，不要手写 git 命令。**
+
+等价的手写命令（仅在你已装好系统级 Git 时可用）：
 
 ```bat
 git remote add origin https://github.com/你的用户名/ChroniconSkillMeter.git
@@ -180,6 +207,18 @@ git push -u origin main
 ```
 
 首次推送会弹 **Git Credential Manager 的浏览器登录窗口**（本机已装），登录授权即可。若窗口没弹出、直接要求输入密码：去 GitHub → `Settings` → `Developer settings` → `Personal access tokens` 生成一个勾选 `repo` 的 token，**用 token 当密码**（GitHub 已不接受账号密码）。
+
+#### 兜底：完全不用 git，也能触发 Actions
+
+如果登录/推送始终失败，可以走纯网页路线，效果一样（`push:` 换成 `Create`/`Add file` 同样会触发 `.github/workflows/build.yml`）：
+
+1. 把工作区根目录的 **`ChroniconSkillMeter-upload.zip`** 解压（它由 `git archive HEAD` 生成，只含仓库应提交的文件，已自动排除 `extern/` 第三方头文件、`bin/`、`obj/`、`dist/`）。
+2. 在 GitHub 空仓库页点 **`uploading an existing file`**。
+3. 把解压出来的**全部内容**（含隐藏的 `.github` 文件夹、`.gitignore`）一起拖进上传区。
+4. 填 commit message，点 **`Commit changes`**，然后按第 3 步去 Actions 看构建。
+
+> 注意：不要把 zip 本身拖进去（GitHub 会当成一个压缩文件上传，不会自动解压）。必须先解压再拖内容。
+
 
 #### 第 3 步：等自动构建
 
@@ -205,6 +244,9 @@ git push -u origin main
 
 | 现象 | 处理 |
 |---|---|
+| `'push_to_github.bat' 不是内部或外部命令` | 当前目录不对。改用第 2 步的**完整路径**运行，或先 `cd /d "...\ChroniconSkillMeter"`；PowerShell 用 `& "完整路径"` |
+| `'git' 不是内部或外部命令` | 本机没有系统级 Git。必须用 `push_to_github.bat`（它会自动定位便携 Git），或改用上面的「完全不用 git」兜底方案 |
+| `Failed to locate 'git.exe'` / 登录窗口不弹 | Git Credential Manager 找不到 git。脚本已自动补 PATH；若仍出现，先跑 `push_to_github.bat --check` 看 `GitRoot` 是否正确 |
 | `push` 报 `rejected` / `non-fast-forward` | 建仓时勾了 README。执行 `git pull --rebase origin main` 后重新 `git push -u origin main` |
 | Actions 里看不到 `Build DLL` | 确认 `.github/workflows/build.yml` 在仓库根目录的这一路径；再去 `Settings` → `Actions` → `General` → 选 `Allow all actions and reusable workflows` |
 | 编译报 `C1083: Cannot open include file` | 看 `Fetch YYToolkit / Aurie headers` 那步的日志；工作流已带 raw 三次重试 + GitHub API 回退 |
