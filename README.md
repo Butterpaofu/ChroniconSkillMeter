@@ -46,6 +46,15 @@ gml_Script_actorDamage(dmg, crit, element, trigger, attacker, skill)
 
 ## 3. 安装（先把 DLL 编出来）
 
+> ✅ **本机当前状态（2026-11-09）**：DLL 已经通过 GitHub Actions 编好并放进游戏目录，运行时也已换成与头文件匹配的版本。**现在只需要重新启动一次游戏**，按 **F5** 看窗口。若仍然闪退，直接跳到 **3.8**。
+>
+> 一键重装 / 回滚固定版运行时（推荐先记住这条命令）：
+> ```powershell
+> cd "C:\Users\FIREBAT\WorkBuddy AI\2026-11-09-08-54-10\ChroniconSkillMeter"
+> powershell -NoProfile -ExecutionPolicy Bypass -File .\install_runtime.ps1
+> ```
+> 当前 `mods\` 布局：`AurieLoader.exe`（Aurie v1.0.5）、`native\AurieCore.dll`（v1.0.5）、`aurie\YYToolkit.dll`（**v3.2.3**）、`aurie\ChroniconSkillMeter.dll`（本项目 x64）。旧栈完整备份在 `<游戏目录>\_ChroniconSkillMeter_backup\`。
+
 ### ⚠️ 先看这个：交付包里没有 `ChroniconSkillMeter.dll`
 
 这个项目是**源码**，仓库里只有 `.cpp` / `.hpp` 和 VS 工程，**不含任何 `.dll`**。第 3.2 节里 `Add Mods` 要选的那个文件，必须先编译才会出现——不是你漏找了某个文件夹。
@@ -64,7 +73,7 @@ gml_Script_actorDamage(dmg, crit, element, trigger, attacker, skill)
 2. **云端编译（本机装不了 VS 时）**：把项目推到自己的 GitHub 仓库，`push` 会自动触发 `.github/workflows/build.yml`，在 `windows-2022` runner 上编译，跑完在 **Artifacts** 里下载 `ChroniconSkillMeter.dll`。本地不需要装任何开发工具。**完整手把手步骤见 3.6**（本地仓库已初始化好，只差建仓 + 推送）；32 位游戏用 `Run workflow` 选 `Win32`。
 3. **让别人代编**：把整个项目目录发给有 VS2022 的人，跑一次 `build.bat`，把 `dist\` 里的 DLL 发回来即可。
 
-> 生成这个项目的机器**没有安装任何 C++ 编译器 / Windows SDK**，因此无法在这里预先编译好 DLL。但 `extern/` 下 4 个依赖头文件**已经预先拉好**，你在自己机器上装完 VS 可以直接离线编译。`fetch_deps.ps1` 还加了 `curl.exe` + GitHub contents API 双回退并显式设置 TLS 1.2——`raw.githubusercontent.com` 连不上、或 Windows PowerShell 5.1 的 .NET 网络栈被 403 拦截时会自动换通道（两条通道均已实测）。
+> 生成这个项目的机器**没有安装任何 C++ 编译器 / Windows SDK**，本地 `build.bat` 跑不通；DLL 是用 **GitHub Actions** 云端编译后下载到 `dist\` 的（见第 9 节）。`extern/` 下 4 个依赖头文件**已经预先拉好**，在有 VS 的机器上可以直接离线编译。`fetch_deps.ps1` 还加了 `curl.exe` + GitHub contents API 双回退并显式设置 TLS 1.2——`raw.githubusercontent.com` 连不上、或 Windows PowerShell 5.1 的 .NET 网络栈被 403 拦截时会自动换通道（两条通道均已实测）。
 
 ### 3.0 先排掉一个坑：`Auri Manager` ≠ `AurieManager`
 
@@ -83,9 +92,11 @@ gml_Script_actorDamage(dmg, crit, element, trigger, attacker, skill)
 
 v2 的 release notes 里明确写了 `Removed AurieLoader`、`Added support for in-place patching of the target executable instead of relying on registry hacks`。所以从 "latest" 下载的人，既找不到 `Add Game`，也找不到 `AurieManager.exe`。
 
-### 3.2 路线 A（推荐）：用 v1.2.1 的 AurieManager，就有 `Add Game`
+### 3.2 路线 A：用 v1.2.1 的 AurieManager，就有 `Add Game`
 
-**推荐理由**：本项目的 YYToolkit / Aurie 头文件与 v1.x API 对齐（与 chronicon-dps 完全一致）。v2 改动了模块入口（新增 `ModuleEntrypoint`）、回调校验和 hook 默认行为，本项目尚未针对 v2 适配验证。
+**为什么用它**：本项目的 YYToolkit / Aurie 头文件与 v1.x API 对齐（与 chronicon-dps 完全一致）。v2 改动了模块入口（新增 `ModuleEntrypoint`）、回调校验和 hook 默认行为，本项目尚未针对 v2 适配验证。
+
+> 🚨 **但 `AurieManager` 只会用来建 `Add Game` / IFEO 启动项，不要用它下载的那套 YYToolkit**。v1.2.1 配套的 YYToolkit 是 **v4.0.1**，与本项目（v3 头文件）**ABI 不兼容，装上去必定闪退**。安装时请一律以 **3.8** 的固定版本组合为准，最省事的做法是直接跑 `install_runtime.ps1`。
 
 1. 打开 [Aurie v1.2.1 release](https://github.com/AurieFramework/Aurie/releases/tag/v1.2.1)，下载：
    - [`AurieManager.exe`](https://github.com/AurieFramework/Aurie/releases/download/v1.2.1/AurieManager.exe)
@@ -98,6 +109,8 @@ v2 的 release notes 里明确写了 `Removed AurieLoader`、`Added support for 
 6. 启动游戏，按 **F5** 显示 / 隐藏窗口。
 
 > ⚠️ `Install Aurie` 会从 GitHub **联网下载**组件（`AurieLoader.exe`、`AurieCore.dll`、`YYToolkit.dll`）。国内网络常常下载失败：此时界面可能没报错，但注册表已经写好、文件却没落地，游戏就再也启动不了，报「启动游戏错误：游戏可执行文件缺失」。见 **3.7** 的诊断与离线补齐方法。
+>
+> ⚠️ 即使下载成功，它拿到的也是 **YYToolkit v4.0.1**，会让本项目闪退。请务必在装完后按 **3.8** 换成 v3.2.3。
 
 ### 3.3 路线 B（进阶）：当前 v2.x
 
@@ -152,7 +165,7 @@ switch ($machine) { 0x8664 { "64-bit -> Release|x64 + AurieCore.dll" } 0x14C { "
 
 或者：启动游戏后在任务管理器 → 详细信息，进程名后带 `(32 位)` 即为 x86。参考项目 chronicon-dps 同时提供 Win32 / x64 两套配置，本项目 `.sln` 也已补上 `Win32` / `x64` 两套，按上表选对应配置编译即可。
 
-> 游戏版本：本项目依据 Chronicon 1.5x 的 GML 脚本名编写。若游戏大版本更新导致脚本改名，窗口能出来但没有数据，请看第 8 节排查。
+> 本机实测 `Chronicon.exe` 版本 **1.4.0.0**、PE `0x8664`（x64）、62981120 B，所以应选 `Release|x64` + `AurieCore.dll`。GML 脚本名来自 chronicon-dps 所用的版本；若游戏大版本更新导致脚本改名，窗口能出来但没有数据，请看第 8 节排查。
 
 ### 3.6 云端编译：从推送到下载 DLL 的完整步骤
 
@@ -256,6 +269,8 @@ git push -u origin main
 | 报错 `'m_Object': is not a member of 'YYTK::CInstance'` | 旧版源码直接读了 GameMaker 内部结构。当前版本已改为通过 `variable_instance_get` / `asset_get_index` 等 GML 内建函数判断，不要回退这段改动 |
 | 要两个平台的 DLL | 默认 push 出 x64，再手动 `Run workflow` 选 `Win32` 各跑一次 |
 | 推送报 TLS / `schannel` 错误 | 重试；或改用 GitHub Desktop / 网页上传（注意 `.github` 是隐藏目录） |
+| 游戏启动后立刻闪退，事件查看器显示 `YYToolkit.dll 4.0.1.0` + `0xc0000005` | 版本错配：本插件是 v3 头文件编译的，必须配 **YYToolkit v3.2.3 + Aurie v1.0.5**。见 **3.8**，跑 `install_runtime.ps1` 一键换掉 |
+| `install_runtime.ps1` 提示「禁止运行脚本」 | PowerShell 执行策略限制，命令前加 `-ExecutionPolicy Bypass`（README 里的示例已经带了） |
 
 ### 3.7 Steam 报「启动游戏错误：游戏可执行文件缺失」
 
@@ -294,18 +309,86 @@ Get-ChildItem $k -Recurse | ForEach-Object {
 Chronicon/
 ├─ Chronicon.exe
 └─ mods/
-   ├─ AurieLoader.exe              ← Aurie v1.2.1 release（IFEO Debugger 指向它）
+   ├─ AurieLoader.exe              ← Aurie v1.0.5（IFEO Debugger 指向它）
    ├─ native/
-   │   └─ AurieCore.dll           ← v1.2.1 的 x64 版，不是 AurieCore-x86.dll
+   │   └─ AurieCore.dll           ← v1.0.5 的 x64 版，不是 AurieCore-x86.dll
    └─ aurie/
-       ├─ YYToolkit.dll           ← YYToolkit v4.0.1 x64（与 v1.2.1 同日发布）
+       ├─ YYToolkit.dll           ← YYToolkit v3.2.3 x64（699904 B）
        └─ ChroniconSkillMeter.dll ← 本项目 x64 产物
 ```
 
-组件来源：`AurieLoader.exe` / `AurieCore.dll` 来自 [Aurie v1.2.1](https://github.com/AurieFramework/Aurie/releases/tag/v1.2.1)；`YYToolkit.dll` 来自 [YYToolkit v4.0.1](https://github.com/AurieFramework/YYToolkit/releases/tag/v4.0.1)（1094656 B）；`ChroniconSkillMeter.dll` 来自 Actions Artifact 或本地 `dist\`。
+组件来源：`AurieLoader.exe` / `AurieCore.dll` 来自 [Aurie v1.0.5](https://github.com/AurieFramework/Aurie/releases/tag/v1.0.5)；`YYToolkit.dll` 来自 [YYToolkit v3.2.3](https://github.com/AurieFramework/YYToolkit/releases/tag/v3.2.3)；`ChroniconSkillMeter.dll` 来自 Actions Artifact 或本地 `dist\`。**别用 v1.2.1 / v4.0.1 那套**，原因见 3.8。
 
-> ⚠️ **版本与位数必须配套**：v2.x 的 `AurieCore.dll` + v5.x 的 `YYToolkit.dll` 与本项目头文件不匹配。Chronicon 是 x64（PE machine `0x8664`），四个文件都要 x64。
+> ⚠️ **版本与位数必须配套**：项目头文件来自 chronicon-dps（2024-02），只对应 Aurie v1.0.x + YYToolkit v3.x。Chronicon 是 x64（PE machine `0x8664`），四个文件都要 x64。
 > ⚠️ Steam 每次「验证游戏文件完整性」或游戏更新都可能抹掉这些文件；更新后若又报同样错误，重做 B 或先 A 再重新 `Install Aurie`。
+
+### 3.8 启动后闪退：YYToolkit v4 与本插件 ABI 不兼容
+
+**症状**：Steam 能启动游戏、黑屏 / 进主菜单前直接退出，事件查看器里是 `Application Error`：
+
+```
+出错应用程序名称: Chronicon.exe，版本: 1.4.0.0
+出错模块名称:     YYToolkit.dll，版本: 4.0.1.0
+异常代码:         0xc0000005
+错误偏移:         0x0000000000017752
+错误模块路径:     ...\mods\aurie\YYToolkit.dll
+```
+
+`0xc0000005` = Access Violation。注意**出错模块是 `YYToolkit.dll`，不是 `ChroniconSkillMeter.dll`**——但根因仍在本插件侧：插件是按 **YYToolkit v3 头文件**编译的，却去调用 **v4 运行时**的接口虚表，等于按旧槽位跳进了一个完全不相干的函数。
+
+**证据链**（全部实测）：
+
+| 事实 | 结论 |
+|---|---|
+| 本项目 `extern/YYToolkit/Shared.hpp` 的 git blob SHA 是 `16631db58725`，`Aurie/shared.hpp` 是 `15885650ecd4` | 与 `atty303/chronicon-dps` 的 `include/` 快照**逐字节一致**（2024-02） |
+| chronicon-dps v1.0.0 发布于 2024-02-26，当时 Aurie 最新是 **v1.0.5**（2024-01-15）、YYToolkit 最新是 **v3.2.3**（2024-01-21） | 这套头文件就是 v3.2.3 API |
+| `ModuleMain.cpp` 调 `ObGetInterface("YYTK_Main", ...)`，`Gml.cpp` 调 `iface->CallBuiltin(...)`、`AsReal()` / `AsBool()` / `AsString()` | 全是 v3 虚表布局与 v3 方法名 |
+| [YYToolkit v4.0.1 release notes](https://github.com/AurieFramework/YYToolkit/releases/tag/v4.0.1) 开头写着 `# Developers: Your plugins may be broken!`，[v4 API 变更](https://github.com/AurieFramework/YYToolkit/wiki/API-changes-in-v4) 列出 `AsReal→ToDouble`、`AsBool→ToBoolean`、`AsString→ToString`、删除 `CInstance::at/operator[]`、新增 `GetMember/GetRefMember/GetMemberCount`、`RValue` 初始化语义变化 | v4 是明确的破坏性升级，旧插件必须重新编译 |
+| 本机 `Chronicon.exe` / `AurieCore.dll` / `YYToolkit.dll` / `ChroniconSkillMeter.dll` 全为 PE `0x8664` | 不是 32/64 位错配 |
+
+**唯一正确的版本组合**（x64，已在本机装好）：
+
+| 组件 | 版本 | 发布日期 | 大小 (B) | SHA-256 前 16 位 |
+|---|---|---|---|---|
+| `AurieLoader.exe` | Aurie v1.0.5 | 2024-01-15 | 272896 | `8ce89a0b518f65e4` |
+| `native\AurieCore.dll` | Aurie v1.0.5 | 2024-01-15 | 606720 | `4b26ccf828bed538` |
+| `aurie\YYToolkit.dll` | YYToolkit v3.2.3 | 2024-01-21 | 699904 | `1ab7bb9413228b1c` |
+| `aurie\ChroniconSkillMeter.dll` | 本项目 x64 | — | 442368 | 由 Actions 构建 |
+
+> ❌ 不要混搭：`Aurie v1.2.1 + YYToolkit v4.0.1` 是官方配对，但**只适用于按 v4 头文件重编过的插件**；`Aurie v2.x + YYToolkit v5.x` 更是另一套模块入口。想用 v4 就得把 `Gml.cpp` / `ModuleMain.cpp` 迁到 v4 API 并换全套头文件重新编译，本项目没有做这条路线。
+
+**一键安装 / 回滚**（脚本会先备份、校验 SHA-256，不删除任何文件）：
+
+```powershell
+cd "C:\Users\FIREBAT\WorkBuddy AI\2026-11-09-08-54-10\ChroniconSkillMeter"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install_runtime.ps1
+```
+
+常用参数：
+
+| 参数 | 作用 |
+|---|---|
+| `-GameDir "D:\...\Chronicon"` | 游戏不在默认路径时指定（默认 `D:\SteamLibrary\steamapps\common\Chronicon`） |
+| `-ModDll "C:\...\ChroniconSkillMeter.dll"` | 指定插件 DLL，默认找 `dist\ChroniconSkillMeter.dll` |
+| `-NoDownload` | 只用 `dist\runtime\` 里已缓存的文件，完全离线 |
+| `-UseControl` | 改装官方 [ChroniconDPS.dll v1.0.0](https://github.com/atty303/chronicon-dps/releases/tag/v1.0.0) 做 A/B 对照 |
+| `-Rollback` | 从 `<游戏目录>\_ChroniconSkillMeter_backup\` 还原原来的那套 |
+
+原栈会被完整备份到 `<游戏目录>\_ChroniconSkillMeter_backup\`（`AurieLoader.exe`、`native\`、`aurie\`、以及官方对照 DLL）。`-UseControl` / `-Rollback` 切换时，当前 DLL 会被 **移动** 到备份目录而不是删除。
+
+**排查顺序建议**：
+
+1. 先跑一次普通安装，启动游戏。不再闪退 = 版本问题已解决，按 **F5** 看窗口。
+2. 若仍闪退，用 `-UseControl` 换上官方 `ChroniconDPS.dll`（F1 / F2 切换），启动游戏。**官方 mod 能跑 → 框架没问题，问题在本插件的 Hook 逻辑**；官方 mod 也闪退 → 是 Aurie / IFEO / 游戏版本问题，先看 3.7。
+3. 若换成官方 mod 就不闪退、换回本插件又闪退，把 Windows 事件查看器里最新的 `Application Error` 的「出错模块 / 异常代码 / 错误偏移」记下来，那是定位到具体 Hook 的关键。
+4. 任何时候想回到原样：`-Rollback`。
+
+自查闪退原因（PowerShell）：
+
+```powershell
+Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000} -MaxEvents 5 |
+  ForEach-Object { $_.Message } | Select-String -Pattern 'Chronicon|YYToolkit|Aurie|0xc0000005'
+```
 
 ---
 
@@ -421,11 +504,14 @@ extern\FunctionWrapper\FunctionWrapper.hpp
 - ✅ **GitHub Actions 云端编译已实跑成功**：`windows-2022` + VS2022 Enterprise + MSVC v143 + C++20，`Release|x64`。`run 42559137738`（commit `1871bcf`）全部步骤绿灯，产出 Artifact `ChroniconSkillMeter-x64`。
 - ✅ **产物已实际校验**：x64 `ChroniconSkillMeter.dll` 442368 B，PE 头 `0x8664` = x64，导出表含 `DllMain`、`ModuleInitialize`、`__AurieFrameworkInit`——`ModuleInitialize` 正是 `mods\aurie\` 加载时需要的入口。首次失败的 6 条 MSVC 报错（`C2039 m_Object` ×3、`C2397` 窄化转换 ×3）已全部修复。
 - ✅ **Win32 配置也实跑通过**（`run 42559265956`，`Release|Win32`）：365056 B，PE 头 `0x014c` = x86。两个平台的 Artifact 分别是 `ChroniconSkillMeter-x64` / `ChroniconSkillMeter-Win32`；本机 `dist\` 下也已放好两份，按第 3.5 节查到游戏位数后选对应的一个即可。
-- ⚠️ **仍未验证**：把 DLL 注入实际的 Chronicon.exe、Hook 是否命中、窗口是否显示、技能伤害是否按 ID 正确归因。本机没有游戏，这些只能在你的机器上验。引擎侧调用是对照 `atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus` 源码核对的，游戏版本差异可能导致脚本名/参数顺序不同。
+- ✅ **本机已定位并修复一次真实闪退**：Steam 报「游戏可执行文件缺失」是 IFEO `Debugger` 指向的 `AurieLoader.exe` 未落地（见 3.7）；补齐后出现的 0xc0000005 闪退，经 WER 确认出错模块为 `YYToolkit.dll 4.0.1.0` 偏移 `0x17752`，根因是 v3 头文件编出的插件配 v4 运行时（见 3.8）。现已改成 **Aurie v1.0.5 + YYToolkit v3.2.3 + 本插件 x64**，四个文件均校验为 PE `0x8664`。
+- ✅ **`install_runtime.ps1` 三条路径实跑通过**：普通安装 → `272896 / 606720 / 699904`；`-UseControl` → 只加载官方 `ChroniconDPS.dll`；`-Rollback` → 精确还原 `92160 / 625664 / 1094656`。安装前自动备份到 `_ChroniconSkillMeter_backup\`，未删除任何文件。
+- ✅ **头文件版本已用哈希坐实**：`extern/YYToolkit/Shared.hpp` = `16631db58725`、`Shared.cpp` = `88d2d7490b9c`、`Aurie/shared.hpp` = `15885650ecd4`、`FunctionWrapper.hpp` = `2eec7c5b8aaf`，与 `atty303/chronicon-dps` 的 `ChroniconDPS/include/` git blob SHA 完全一致。
+- ⚠️ **仍未验证**：游戏进程内 Hook 是否命中 `gml_Script_actorDamage` / `gml_Script_GUIdraw`、窗口是否显示、技能伤害是否按 ID 正确归因。修复后需要**重新启动一次游戏**才能确认，这部分只能在你看到画面后验。引擎侧调用是对照 `atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus` 源码核对的，游戏版本差异可能导致脚本名/参数顺序不同。若仍闪退，按 3.8 的 `-UseControl` 做 A/B 对照。
 - `extern/` 的 4 个依赖头文件已通过 GitHub contents API 实际下载并解码成功（73619 / 7585 / 16118 / 2114 B）。`fetch_deps.ps1` 三条通道都实测过：raw 直连成功、`curl.exe` + API 回退成功、PowerShell 5.1 直连 API 会 403（已用前两条绕开）。
 - 本机 `curl` 连续请求 raw 偶发 `schannel: server closed abruptly`，因此工作流加了 `--retry 3` 与 API 回退；GitHub runner 使用不同 TLS 栈，实测四个头文件均一次下载成功。
-- 安装章节（第 3 节）已按 Aurie `v1.2.1` / `v2.0.2` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对，但**未在本机实机执行**。
-- 结论：**DLL 已经用 GitHub Actions 编出来了**，可以下载 Artifact 直接用；剩下唯一没做的是游戏内实机验证。
+- 安装章节（第 3 节）已按 Aurie `v1.0.5` / `v1.2.1` / `v2.0.2`、YYToolkit `v3.2.3` / `v4.0.1` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对；`mods\` 目录的离线补齐与降级已在**本机游戏目录实际执行并校验文件尺寸 / PE 头 / IFEO 路径**。
+- 结论：**DLL 已经用 GitHub Actions 编出来了，运行时版本组合也已在本机装好**；剩下唯一没做的是重新启动游戏，确认 Hook 命中与窗口显示。
 
 ---
 
@@ -436,11 +522,13 @@ ChroniconSkillMeter/
 ├─ README.md                     本文件
 ├─ preview.html                  界面与交互预览（单文件，浏览器打开）
 ├─ build.bat                     一键编译 → dist\ChroniconSkillMeter.dll
+├─ install_runtime.ps1           一键装/回滚固定版运行时（Aurie 1.0.5 + YYTK 3.2.3）
 ├─ push_to_github.bat            一键推送到你的 GitHub 仓库
 ├─ fetch_deps.bat / .ps1         拉取 YYToolkit / Aurie 头文件（含 API 回退）
 ├─ .gitignore                    排除编译产物与第三方头文件
 ├─ .github/workflows/build.yml   云端编译 DLL，产出 Actions Artifact
 ├─ dist\                         编译后生成，DLL 成品固定放这里
+│  └─ runtime\                   固定版运行时缓存（AurieLoader/AurieCore/YYToolkit/对照 DLL）
 ├─ extern\                       YYToolkit / Aurie 头文件（本副本已预先拉好）
 ├─ ChroniconSkillMeter.sln       VS 2022 解决方案（x64 + Win32）
 ├─ config/skill_names.example.txt
@@ -465,6 +553,10 @@ ChroniconSkillMeter/
 - [YYToolkit / Aurie Framework](https://github.com/AurieFramework/YYToolkit) — GameMaker 游戏的 mod 框架
 - [atty303/chronicon-dps](https://github.com/atty303/chronicon-dps) — 验证可用的 Chronicon DPS meter，本项目沿用其 Hook 与头文件；其 README 的 `Add Game` 流程对应 Aurie **v1.x**
 - [falorfrozen-cmd/ChroniconPlus](https://github.com/falorfrozen-cmd/ChroniconPlus) — 提供了 `actorDamage` 六参数签名与玩家实例识别的参考
-- [Aurie v1.2.1 release](https://github.com/AurieFramework/Aurie/releases/tag/v1.2.1) — 最后一个带 `AurieManager.exe` / `Add Game` 的版本
+- [Aurie v1.0.5 release](https://github.com/AurieFramework/Aurie/releases/tag/v1.0.5) — ★ 本项目固定使用的运行时，与头文件同源
+- [YYToolkit v3.2.3 release](https://github.com/AurieFramework/YYToolkit/releases/tag/v3.2.3) — ★ 本项目固定使用的 YYToolkit，v3 API
+- [YYToolkit v4.0.1 release](https://github.com/AurieFramework/YYToolkit/releases/tag/v4.0.1) / [API changes in v4](https://github.com/AurieFramework/YYToolkit/wiki/API-changes-in-v4) — 破坏性升级说明，解释了 3.8 的闪退
+- [chronicon-dps v1.0.0](https://github.com/atty303/chronicon-dps/releases/tag/v1.0.0) — 已知可用的对照 mod，用于 3.8 的 A/B 排查
+- [Aurie v1.2.1 release](https://github.com/AurieFramework/Aurie/releases/tag/v1.2.1) — 最后一个带 `AurieManager.exe` / `Add Game` 的版本（只用它建启动项，别用它配的 v4 组件）
 - [Aurie v2.0.2 release](https://github.com/AurieFramework/Aurie/releases/tag/v2.0.2) — 当前的 `AuriePatcher.exe` 方案
 - [Aurie Installer / Patcher 源码](https://github.com/AurieFramework/Aurie/tree/master/AurieInstaller) — `mods\aurie` / `mods\native` 目录结构与 patch 流程的依据
