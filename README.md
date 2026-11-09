@@ -365,14 +365,15 @@ extern\FunctionWrapper\FunctionWrapper.hpp
   ```
   cl /std:c++20 /EHsc /I ChroniconSkillMeter\source tests\meter_test.cpp ChroniconSkillMeter\source\Meter.cpp /Fe:meter_test.exe
   ```
-- **本机没有 C++ 编译器**，因此 DLL 未在此环境实际编译/注入验证；所有引擎侧调用均对照两个已公开的可用 mod 源码（`atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus`）核对过函数名与参数顺序。首次编译若有报错，通常是 `extern/` 头文件版本差异，按报错调整 `Gml.cpp` 即可。
-- 新增的 `Win32` 配置只是把 `x64` 的编译/链接选项复制了一份并切换平台（对照 chronicon-dps 的 vcxproj），同样**未经实机编译**；若 32 位下 YYToolkit 头文件里的指针宽度断言报错，按报错调整 `Gml.hpp` 的 `static_assert` 即可。
-- 安装章节（第 3 节）已按 Aurie `v1.2.1` / `v2.0.2` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对，但这些流程同样**未在本机实机执行**。
-- `extern/` 的 4 个依赖头文件已通过 GitHub contents API **实际下载并解码成功**（`Shared.hpp` 73619 B、`Shared.cpp` 7585 B、`Aurie/shared.hpp` 16118 B、`FunctionWrapper.hpp` 2114 B）。`fetch_deps.ps1` 的三条通道都实测过：raw 直连成功、`curl.exe` + API 回退成功、PowerShell 5.1 直连 API 会 403（已用前两条绕开）。
-- `build.bat` **实机跑到「Locating MSBuild」**：依赖检查通过，并正确报出本机缺 `vswhere.exe` / VS2022；因无编译器，后半段编译与 `dist\` 复制未实机验证。`.github/workflows/build.yml` 经 `pyyaml` 解析校验（6 个步骤、触发器和 shell 均正确），但**未在 GitHub Actions 上实跑**。
-- 云端编译链路已尽量在本地验证：raw 与 `Accept: application/vnd.github.raw` 的 GitHub API 两条通道都实测返回 200 / 2114 B；工作流 YAML 经 `pyyaml` 解析通过；本地已 `git init -b main` 并建好首个提交（24 个文件），分支名与推送命令一致。**GitHub Actions 本身仍未实跑**。
-- 本机 `curl` 连续请求 raw 偶发 `schannel: server closed abruptly`，因此工作流加了 `--retry 3` 与 API 回退；GitHub runner 使用不同 TLS 栈，通常不受影响。本机已装 Git Credential Manager，推送时会弹浏览器登录。
-- 结论：**DLL 必须由你在有 VS2022 的机器上、或用 GitHub Actions 编出来**；本仓库只提供源码与工程。
+- **本机没有 C++ 编译器**（无 VS2022 / Windows SDK / MSBuild / MinGW / LLVM），所以本地 `build.bat` 只能跑到「Locating MSBuild」并正确报缺 VS2022；本地编译与 `dist\` 复制未实机验证。
+- ✅ **GitHub Actions 云端编译已实跑成功**：`windows-2022` + VS2022 Enterprise + MSVC v143 + C++20，`Release|x64`。`run 42559137738`（commit `1871bcf`）全部步骤绿灯，产出 Artifact `ChroniconSkillMeter-x64`。
+- ✅ **产物已实际校验**：x64 `ChroniconSkillMeter.dll` 442368 B，PE 头 `0x8664` = x64，导出表含 `DllMain`、`ModuleInitialize`、`__AurieFrameworkInit`——`ModuleInitialize` 正是 `mods\aurie\` 加载时需要的入口。首次失败的 6 条 MSVC 报错（`C2039 m_Object` ×3、`C2397` 窄化转换 ×3）已全部修复。
+- ✅ **Win32 配置也实跑通过**（`run 42559265956`，`Release|Win32`）：365056 B，PE 头 `0x014c` = x86。两个平台的 Artifact 分别是 `ChroniconSkillMeter-x64` / `ChroniconSkillMeter-Win32`；本机 `dist\` 下也已放好两份，按第 3.5 节查到游戏位数后选对应的一个即可。
+- ⚠️ **仍未验证**：把 DLL 注入实际的 Chronicon.exe、Hook 是否命中、窗口是否显示、技能伤害是否按 ID 正确归因。本机没有游戏，这些只能在你的机器上验。引擎侧调用是对照 `atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus` 源码核对的，游戏版本差异可能导致脚本名/参数顺序不同。
+- `extern/` 的 4 个依赖头文件已通过 GitHub contents API 实际下载并解码成功（73619 / 7585 / 16118 / 2114 B）。`fetch_deps.ps1` 三条通道都实测过：raw 直连成功、`curl.exe` + API 回退成功、PowerShell 5.1 直连 API 会 403（已用前两条绕开）。
+- 本机 `curl` 连续请求 raw 偶发 `schannel: server closed abruptly`，因此工作流加了 `--retry 3` 与 API 回退；GitHub runner 使用不同 TLS 栈，实测四个头文件均一次下载成功。
+- 安装章节（第 3 节）已按 Aurie `v1.2.1` / `v2.0.2` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对，但**未在本机实机执行**。
+- 结论：**DLL 已经用 GitHub Actions 编出来了**，可以下载 Artifact 直接用；剩下唯一没做的是游戏内实机验证。
 
 ---
 
