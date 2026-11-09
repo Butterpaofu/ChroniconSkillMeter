@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronicon 技能伤害统计 · 界面预览</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1b2432; --sub:#5d6b7f;
+    --line:#e2e8f0; --brand:#3a7bd5; --brand-soft:#eaf2ff;
+    --panel:#10141b; --title:#1a202a; --border:#425064;
+    --text:#e2e9f2; --muted:#8494a8; --accent:#60bcfa;
+    --detail:#0b0f15; --live:#6cdc8c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:36px 24px 56px}
+  h1{font-size:26px;margin:0 0 8px;letter-spacing:-.4px}
+  .lede{color:var(--sub);font-size:14px;line-height:1.7;margin:0 0 18px;max-width:800px}
+  .tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+  .tag{font-size:12px;padding:5px 11px;border-radius:99px;background:var(--brand-soft);
+    color:var(--brand);border:1px solid #d5e6ff;font-weight:600}
+  .tag.gray{background:#eef1f5;color:#5d6b7f;border-color:#e2e8f0}
+
+  .stage-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px;box-shadow:0 8px 28px rgba(28,42,66,.07)}
+  .stage{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:9px}
+  .scene{position:absolute;top:0;left:0;width:960px;height:540px;transform-origin:top left;
+    background:radial-gradient(ellipse at 52% 42%,#2b3a55 0%,#182236 48%,#0a0e18 100%)}
+  .floor{position:absolute;inset:0;opacity:.5;
+    background-image:linear-gradient(rgba(150,190,255,.07) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(150,190,255,.07) 1px,transparent 1px);
+    background-size:44px 44px;
+    mask-image:linear-gradient(transparent 8%,#000 55%,transparent 96%)}
+  .vignette{position:absolute;inset:0;box-shadow:inset 0 0 160px 60px rgba(0,0,0,.7)}
+  .mob{position:absolute;border-radius:50%;filter:blur(1px);opacity:.85}
+  .hero{position:absolute;left:56%;top:62%;width:26px;height:34px;border-radius:5px 5px 3px 3px;
+    background:linear-gradient(#ffe6a8,#c98b3e);box-shadow:0 0 22px 6px rgba(255,205,110,.35)}
+  .scene-label{position:absolute;right:14px;bottom:12px;font:11px/1.4 ui-monospace,Consolas,monospace;
+    color:rgba(226,233,242,.45);letter-spacing:.5px}
+  .hint{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);
+    color:rgba(226,233,242,.5);font:12px/1.6 ui-monospace,Consolas,monospace;text-align:center;
+    pointer-events:none;transition:opacity .2s}
+
+  /* ---- the in-game window (mirrors Overlay.cpp) ---- */
+  .meter{position:absolute;width:420px;height:336px;background:rgba(16,20,27,.90);
+    border:1px solid var(--border);color:var(--text);
+    font:12px/1 ui-monospace,"Cascadia Code",Consolas,monospace;
+    display:flex;flex-direction:column;user-select:none;cursor:default;
+    box-shadow:0 12px 34px rgba(0,0,0,.55)}
+  .m-head{height:26px;flex:0 0 26px;background:rgba(26,32,42,.96);display:flex;align-items:center;
+    padding:0 8px;gap:8px;cursor:move;border-bottom:1px solid rgba(66,80,100,.9)}
+  .m-title{color:var(--accent);font-weight:700;font-size:12.6px;letter-spacing:.3px}
+  .m-head .spacer{flex:1}
+  .m-sort{color:var(--muted);font-size:10.5px;cursor:pointer}
+  .m-view{color:var(--text);font-size:11.5px;cursor:pointer}
+  .m-sort:hover,.m-view:hover{color:var(--accent)}
+  .m-close{color:var(--muted);cursor:pointer;padding:0 2px;font-size:12px}
+  .m-close:hover{color:#ff8a8a}
+  .m-summary{height:30px;flex:0 0 30px;background:rgba(30,36,46,.55);
+    display:grid;grid-template-columns:1.05fr 1fr 1fr .8fr;align-items:center;padding:0 9px;gap:4px}
+  .m-summary .kv{display:flex;flex-direction:column;gap:1px}
+  .m-summary .k{font-size:8.5px;color:var(--muted);letter-spacing:.4px}
+  .m-summary .v{font-size:12.5px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-summary .v.big{font-size:14px}
+  .m-summary .v.live{color:var(--live);font-size:10px}
+  .m-cols{height:18px;flex:0 0 18px;background:rgba(26,32,42,.75);display:grid;
+    grid-template-columns:1fr 84px 62px 62px 46px;align-items:center;
+    padding:0 9px;color:var(--muted);font-size:9.5px;letter-spacing:.4px}
+  .m-cols span:nth-child(n+2){text-align:right;cursor:pointer}
+  .m-cols span:nth-child(n+2):hover{color:var(--accent)}
+  .m-rows{flex:1;min-height:0;background:rgba(16,20,27,.35);overflow:hidden;position:relative}
+  .row{height:22px;display:grid;grid-template-columns:1fr 84px 62px 62px 46px;
+    align-items:center;padding:0 9px;position:relative;cursor:pointer;font-size:11.5px}
+  .row:hover{background:rgba(48,60,76,.30)}
+  .row.sel{background:rgba(48,60,76,.30)}
+  .row.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+  .row .bar{position:absolute;left:3px;top:3px;bottom:3px;opacity:.30;border-radius:1px;z-index:0}
+  .row>span{position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .name{color:var(--text);padding-left:5px}
+  .row .num{text-align:right;color:var(--muted)}
+  .row .total{color:var(--text);font-weight:600}
+  .scrollbar{position:absolute;right:2px;width:3px;background:var(--accent);opacity:.8;border-radius:2px}
+  .m-detail{height:34px;flex:0 0 34px;background:rgba(11,15,21,.85);border-top:1px solid rgba(66,80,100,.6);
+    padding:4px 9px;overflow:hidden}
+  .m-detail .l1{font-size:10.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-detail .l2{font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-detail .empty{font-size:10px;color:var(--muted);text-align:center;line-height:25px}
+  .m-foot{height:20px;flex:0 0 20px;background:rgba(26,32,42,.9);color:var(--muted);
+    font-size:9.5px;display:flex;align-items:center;padding:0 9px;letter-spacing:.2px;
+    white-space:nowrap;overflow:hidden}
+  .m-rows .empty-state{position:absolute;left:0;right:0;top:26px;text-align:center;color:var(--muted);font-size:11px}
+  .hidden{display:none!important}
+
+  /* ---- page content below the preview ---- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .box h2{font-size:14px;margin:0 0 12px;color:var(--ink)}
+  .box p,.box li{font-size:13px;line-height:1.75;color:var(--sub);margin:0 0 6px}
+  .box ul{padding-left:18px;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td{padding:6px 0;border-bottom:1px solid #f0f3f7;color:var(--sub)}
+  td:first-child{width:88px;color:var(--ink);font-weight:600}
+  kbd{background:#eef2f7;border:1px solid #dce3ec;border-bottom-width:2px;border-radius:4px;
+    padding:1px 6px;font:11px ui-monospace,Consolas,monospace;color:#334}
+  .note{margin-top:18px;background:#fff8e8;border:1px solid #f3e2b8;border-radius:10px;
+    padding:14px 18px;font-size:12.5px;line-height:1.75;color:#7a6032}
+  .note b{color:#5f4a20}
+  footer{margin-top:26px;font-size:12px;color:#94a1b3;text-align:center}
+  @media(max-width:760px){.cols{grid-template-columns:1fr}.wrap{padding:22px 14px 40px}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chronicon · 技能伤害统计插件</h1>
+  <p class="lede">游戏内悬浮窗口，像 Skada 一样把<strong>每个技能单独列一行</strong>。下面是界面与交互的可操作预览——深色卡片模拟游戏画面，统计窗口就是插件实际绘制的样子。数据来自 <code>tests/verify_logic.py</code> 的真实聚合结果。</p>
+  <div class="tags">
+    <span class="tag">按技能 ID 精确归因</span>
+    <span class="tag">占比 / DPS / 暴击率</span>
+    <span class="tag">当前 · 总体 · 上一场</span>
+    <span class="tag">可拖动 / 可展开</span>
+    <span class="tag gray">原生 DLL mod</span>
+  </div>
+
+  <div class="stage-card">
+    <div class="stage" id="stage">
+      <div class="scene" id="scene">
+        <div class="floor"></div><div class="vignette"></div>
+        <div class="mob" style="left:24%;top:38%;width:16px;height:16px;background:#ff7a6e;box-shadow:0 0 24px 8px rgba(255,90,80,.35)"></div>
+        <div class="mob" style="left:71%;top:30%;width:13px;height:13px;background:#8fd0ff;box-shadow:0 0 22px 7px rgba(110,190,255,.35)"></div>
+        <div class="mob" style="left:78%;top:67%;width:18px;height:18px;background:#b9f08a;box-shadow:0 0 24px 8px rgba(150,230,110,.30)"></div>
+        <div class="mob" style="left:33%;top:74%;width:11px;height:11px;background:#d6a8ff;box-shadow:0 0 20px 6px rgba(190,140,255,.35)"></div>
+        <div class="hero"></div>
+        <div class="scene-label">CHRONICON · IN-GAME PREVIEW</div>
+        <div class="hint" id="hint">按 F5 重新显示统计窗口</div>
+
+        <div class="meter" id="meter">
+          <div class="m-head" id="handle">
+            <span class="m-title">SKILL DAMAGE</span><span class="spacer"></span>
+            <span class="m-sort" id="sortTag" title="点击切换排序">DAMAGE</span>
+            <span class="m-view" id="viewTag" title="点击切换视图">[CURRENT]</span>
+            <span class="m-close" id="closeBtn" title="隐藏">x</span>
+          </div>
+          <div class="m-summary" id="summary"></div>
+          <div class="m-cols">
+            <span data-sort="total" style="cursor:default">SKILL</span>
+            <span data-sort="total">DAMAGE</span><span data-sort="share">SHARE</span>
+            <span data-sort="dps">DPS</span><span data-sort="crit">CRIT</span>
+          </div>
+          <div class="m-rows" id="rows"></div>
+          <div class="m-detail" id="detail"></div>
+          <div class="m-foot" id="foot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="box">
+      <h2>快捷键（预览页同样可用）</h2>
+      <table>
+        <tr><td><kbd>F5</kbd></td><td>显示 / 隐藏窗口</td></tr>
+        <tr><td><kbd>F6</kbd></td><td>清空全部统计</td></tr>
+        <tr><td><kbd>F7</kbd></td><td>切换视图：当前 → 总体 → 上一场</td></tr>
+        <tr><td><kbd>F8</kbd></td><td>切换排序：伤害 / DPS / 命中 / 暴击</td></tr>
+        <tr><td><kbd>F9</kbd></td><td>导出 CSV 与未知技能 ID</td></tr>
+        <tr><td>鼠标</td><td>拖标题栏移动、滚轮翻页、点行展开、点 <code>[CURRENT]</code> 切视图</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>这页展示的是什么</h2>
+      <ul>
+        <li>顶部摘要：总伤害、战斗 DPS、最近 5 秒 DPS、活跃时长、技能数、LIVE 状态。</li>
+        <li>每行一个技能 ID，彩色条长度 = 该技能伤害占比，右侧是伤害 / 占比 / DPS / 暴击率。</li>
+        <li>点任意一行，底部展开命中数、平均/最大单次、以及按怪物拆分的伤害。</li>
+        <li>技能颜色由 ID 哈希生成，跨战斗保持稳定，方便形成肌肉记忆。</li>
+        <li>未匹配到名称时显示 <code>Skill #N</code>——<strong>分组依然精确</strong>，名称只影响显示。</li>
+      </ul>
+      <p style="margin-top:10px">窗口按 960×540 虚拟 HUD 坐标系绘制，游戏内会自动缩放适配分辨率。</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>这不是 WoW 式 AddOn。</b> Chronicon 是 GameMaker 游戏，没有官方 Lua 插件系统；本项目是基于 YYToolkit / Aurie 的原生 DLL mod，Hook <code>gml_Script_actorDamage(dmg, crit, element, trigger, attacker, skill)</code> —— 第 6 个参数直接给出技能 ID，所以不需要靠时间窗口猜测。伤害按目标 HP 实际减少量计量，正确处理护盾与溢出。完整的安装、编译、配置与限制说明见 <code>README.md</code>。
+  </div>
+
+  <footer>ChroniconSkillMeter · 界面预览（数据为模拟战斗，非游戏截图）</footer>
+</div>
+
+<script>
+const PALETTE=['#e87c5c','#5cbaec','#9ccc6c','#e6ba60','#b28eec','#62d6b6','#ec8eb6','#8ca8d8','#d2ce78','#78cede'];
+const D={
+  current:{label:'CURRENT',total:3710000,dps:14800,last5s:14800,time:'42.0s',fights:1,live:true,
+    rows:[
+      {id:101,name:'Frost Nova',total:1240000,hits:143,crits:48,max:21300,avg:8671,dps:8850,crit:.336,targets:[['Ghoul',620000],['Wraith',401000],['Bone Lord',219000]]},
+      {id:204,name:'Chain Lightning',total:945000,hits:210,crits:53,max:12400,avg:4500,dps:6760,crit:.252,targets:[['Wraith',510000],['Ghoul',288000],['Bone Lord',147000]]},
+      {id:318,name:'Meteor',total:715000,hits:38,crits:19,max:48700,avg:18816,dps:5110,crit:.500,targets:[['Bone Lord',402000],['Ghoul',313000]]},
+      {id:77,name:'Holy Bolt',total:401000,hits:97,crits:13,max:9800,avg:4134,dps:2870,crit:.134,targets:[['Ghoul',221000],['Wraith',180000]]},
+      {id:-1,name:'Attack / Procs',total:259000,hits:312,crits:26,max:6200,avg:830,dps:1850,crit:.083,targets:[['Ghoul',142000],['Wraith',117000]]},
+      {id:512,name:'Blessed Hammer',total:152000,hits:64,crits:13,max:7100,avg:2375,dps:1090,crit:.203,targets:[['Bone Lord',92000],['Ghoul',60000]]}]},
+  overall:{label:'OVERALL',total:14840000,dps:12400,last5s:11200,time:'19m 57s',fights:12,live:true,
+    rows:[
+      {id:101,name:'Frost Nova',total:4920000,hits:611,crits:205,max:24100,avg:8052,dps:4110,crit:.336,targets:[['Ghoul',2410000],['Wraith',1520000],['Bone Lord',990000]]},
+      {id:204,name:'Chain Lightning',total:3980000,hits:902,crits:221,max:13900,avg:4412,dps:3320,crit:.245,targets:[['Wraith',2100000],['Ghoul',1200000],['Bone Lord',680000]]},
+      {id:318,name:'Meteor',total:2630000,hits:151,crits:74,max:52300,avg:17417,dps:2200,crit:.490,targets:[['Bone Lord',1510000],['Ghoul',1120000]]},
+      {id:77,name:'Holy Bolt',total:1710000,hits:402,crits:58,max:11200,avg:4254,dps:1430,crit:.144,targets:[['Ghoul',900000],['Wraith',810000]]},
+      {id:-1,name:'Attack / Procs',total:1010000,hits:1288,crits:101,max:7400,avg:784,dps:840,crit:.078,targets:[['Ghoul',560000],['Wraith',450000]]},
+      {id:512,name:'Blessed Hammer',total:590000,hits:248,crits:47,max:8100,avg:2379,dps:490,crit:.190,targets:[['Bone Lord',340000],['Ghoul',250000]]}]},
+  previous:{label:'PREVIOUS',total:2140000,dps:9700,last5s:0,time:'22.0s',fights:1,live:false,
+    rows:[
+      {id:318,name:'Meteor',total:882000,hits:41,crits:22,max:51200,avg:21512,dps:4000,crit:.537,targets:[['Bone Lord',612000],['Ghoul',270000]]},
+      {id:204,name:'Chain Lightning',total:634000,hits:134,crits:31,max:11800,avg:4731,dps:2880,crit:.231,targets:[['Wraith',361000],['Ghoul',273000]]},
+      {id:101,name:'Frost Nova',total:412000,hits:52,crits:17,max:18900,avg:7923,dps:1870,crit:.327,targets:[['Ghoul',240000],['Wraith',172000]]},
+      {id:-1,name:'Attack / Procs',total:212000,hits:241,crits:19,max:5900,avg:880,dps:960,crit:.079,targets:[['Ghoul',121000],['Wraith',91000]]}]}
+};
+const VIEWS=['current','overall','previous'];
+const SORTS=['total','dps','hits','crit','share'];
+const SORT_LABEL={total:'DAMAGE',dps:'DPS',hits:'HITS',crit:'CRIT',share:'SHARE'};
+let st={view:'current',sort:'total',expanded:null,scroll:0,visible:true,x:18,y:96,cleared:false};
+
+function compact(v){
+  const s=['','k','M','B','T','Qa','Qi'];let i=0,a=Math.abs(v);
+  while(a>=1000&&i<6){v/=1000;a/=1000;i++;}
+  if(!i)return Math.round(v).toString();
+  const n=Math.abs(v)>=100?v.toFixed(0):Math.abs(v)>=10?v.toFixed(1):v.toFixed(2);
+  return n+s[i];
+}
+function pct(x,d){return (x*100).toFixed(d)+'%'}
+function color(id){let h=0,s=String(id);for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
+
+function rows(){
+  const d=D[st.view];const total=d.rows.reduce((a,r)=>a+r.total,0);
+  const out=d.rows.map(r=>({...r,share:r.total/total}));
+  const k=st.sort;
+  out.sort((a,b)=>(b[k]-a[k])||(a.id-b.id));
+  return out;
+}
+function render(){
+  const d=D[st.view],list=rows(),m=document.getElementById('meter');
+  m.classList.toggle('hidden',!st.visible);
+  document.getElementById('hint').style.opacity=st.visible?0:1;
+  m.style.left=st.x+'px';m.style.top=st.y+'px';
+  document.getElementById('viewTag').textContent='['+d.label+']';
+  document.getElementById('sortTag').textContent=SORT_LABEL[st.sort];
+
+  document.getElementById('summary').innerHTML=st.cleared?`
+    <div class="kv"><span class="k">TOTAL</span><span class="v big">0</span></div>
+    <div class="kv"><span class="k">DPS · LAST 5s</span><span class="v">0 · 0/s</span></div>
+    <div class="kv"><span class="k">TIME · SKILLS</span><span class="v">0.0s · 0</span></div>
+    <div class="kv"><span class="k">STATE</span><span class="v">IDLE</span></div>`:`
+    <div class="kv"><span class="k">TOTAL</span><span class="v big">${compact(d.total)}</span></div>
+    <div class="kv"><span class="k">DPS · LAST 5s</span><span class="v">${compact(d.dps)} · ${compact(d.last5s)}/s</span></div>
+    <div class="kv"><span class="k">TIME · SKILLS</span><span class="v">${d.time} · ${list.length}</span></div>
+    <div class="kv"><span class="k">STATE</span><span class="v ${d.live?'live':''}">${d.live?'LIVE':'IDLE'}</span></div>`;
+
+  const rowsEl=document.getElementById('rows');
+  const rowH=22,visible=Math.max(1,Math.floor(rowsEl.clientHeight/rowH)||9);
+  const maxScroll=Math.max(0,list.length-visible);
+  st.scroll=Math.min(st.scroll,maxScroll);
+  if(st.cleared){
+    rowsEl.innerHTML='<div class="empty-state">No damage recorded yet<br>Hit something — each skill is listed separately</div>';
+    document.getElementById('detail').innerHTML='<div class="empty">Statistics cleared — press F9 / F7 to continue the demo</div>';
+    document.getElementById('foot').textContent='F5 hide  F6 reset  F7 view  F8 sort  F9 export   |   fight 0';
+    return;
+  }
+  const page=list.slice(st.scroll,st.scroll+visible);
+  rowsEl.innerHTML=page.map(r=>{
+    const critRate=r.hits?r.crits/r.hits:0;
+    return `<div class="row ${st.expanded===r.id?'sel':''}" data-id="${r.id}">
+      <div class="bar" style="width:${(r.share*97).toFixed(2)}%;background:${color(r.id)}"></div>
+      <span class="name">${r.name}</span>
+      <span class="num total">${compact(r.total)}</span>
+      <span class="num">${pct(r.share,1)}</span>
+      <span class="num">${compact(r.dps)}</span>
+      <span class="num">${pct(critRate,0)}</span></div>`;
+  }).join('')+(maxScroll>0?`<div class="scrollbar" style="top:${(st.scroll/maxScroll*70).toFixed(1)}%;height:${Math.max(14,visible/list.length*100).toFixed(0)}%"></div>`:'');
+
+  const sel=list.find(r=>r.id===st.expanded);
+  document.getElementById('detail').innerHTML=sel?`
+    <div class="l1">${sel.name} — ${sel.hits} hits, avg ${compact(sel.avg)}, max ${compact(sel.max)}, crit ${pct(sel.hits?sel.crits/sel.hits:0,1)}, ${compact(sel.dps)} dps</div>
+    <div class="l2">Targets: ${sel.targets.map(t=>t[0]+' '+compact(t[1])).join('  |  ')}</div>`
+    :`<div class="empty">Click a row for details — drag the title bar to move — wheel to scroll</div>`;
+
+  document.getElementById('foot').textContent='F5 hide  F6 reset  F7 view  F8 sort  F9 export   |   fight '+d.fights;
+}
+
+// ---------- interactions ----------
+const stage=document.getElementById('stage'),scene=document.getElementById('scene');
+function fit(){scene.style.transform='scale('+(stage.clientWidth/960)+')';}
+window.addEventListener('resize',fit);fit();
+
+document.querySelectorAll('.m-cols span[data-sort]').forEach(el=>el.addEventListener('click',()=>{
+  st.sort=el.dataset.sort;st.scroll=0;render();}));
+document.getElementById('viewTag').addEventListener('click',()=>{
+  st.view=VIEWS[(VIEWS.indexOf(st.view)+1)%VIEWS.length];
+  st.scroll=0;st.expanded=null;st.cleared=false;render();});
+document.getElementById('sortTag').addEventListener('click',cycleSort);
+document.getElementById('closeBtn').addEventListener('click',()=>{st.visible=false;render();});
+document.getElementById('rows').addEventListener('click',e=>{
+  const row=e.target.closest('.row');if(!row)return;
+  const id=Number(row.dataset.id);st.expanded=(st.expanded===id?null:id);render();});
+document.getElementById('rows').addEventListener('wheel',e=>{
+  e.preventDefault();st.scroll=Math.max(0,st.scroll+(e.deltaY>0?1:-1));render();},{passive:false});
+
+function cycleSort(){st.sort=SORTS[(SORTS.indexOf(st.sort)+1)%SORTS.length];st.scroll=0;render();}
+window.addEventListener('keydown',e=>{
+  const map={F5:'toggle',F6:'reset',F7:'view',F8:'sort',F9:'export'};
+  const a=map[e.key];if(!a)return;e.preventDefault();
+  if(a==='toggle')st.visible=!st.visible;
+  if(a==='reset'){st.cleared=true;st.expanded=null;st.scroll=0;}
+  if(a==='view'){st.view=VIEWS[(VIEWS.indexOf(st.view)+1)%VIEWS.length];st.expanded=null;st.cleared=false;}
+  if(a==='sort')cycleSort();
+  if(a==='export'){st.cleared=false;const btn=document.getElementById('viewTag');btn.textContent='[EXPORTED]';setTimeout(render,800);}
+  if(a!=='export')render();
+});
+
+let drag=null;
+document.getElementById('handle').addEventListener('mousedown',e=>{
+  if(e.target.closest('.m-view,.m-sort,.m-close'))return;
+  drag={sx:e.clientX,sy:e.clientY,x:st.x,y:st.y,scale:stage.clientWidth/960};});
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  st.x=Math.max(0,Math.min(960-420,drag.x+(e.clientX-drag.sx)/drag.scale));
+  st.y=Math.max(0,Math.min(540-336,drag.y+(e.clientY-drag.sy)/drag.scale));
+  render();});
+window.addEventListener('mouseup',()=>drag=null);
+
+render();
+</script>
+</body>
+</html>

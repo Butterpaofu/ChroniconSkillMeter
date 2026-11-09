@@ -1,0 +1,53 @@
+name: Build DLL
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform (match Chronicon.exe architecture)
+        required: true
+        default: x64
+        type: choice
+        options:
+          - x64
+          - Win32
+  push:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch YYToolkit / Aurie headers
+        shell: bash
+        run: |
+          set -e
+          base="https://raw.githubusercontent.com/atty303/chronicon-dps/main/ChroniconDPS/include"
+          for f in YYToolkit/Shared.hpp YYToolkit/Shared.cpp Aurie/shared.hpp FunctionWrapper/FunctionWrapper.hpp; do
+            mkdir -p "extern/$(dirname "$f")"
+            curl -fsSL "$base/$f" -o "extern/$f"
+            echo "fetched $f ($(wc -c < "extern/$f") bytes)"
+          done
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        shell: cmd
+        run: msbuild ChroniconSkillMeter.sln /m /nologo /v:minimal /p:Configuration=Release /p:Platform=${{ github.event.inputs.platform || 'x64' }}
+
+      - name: Verify DLL exists
+        shell: pwsh
+        run: |
+          $dll = 'bin/${{ github.event.inputs.platform || 'x64' }}/Release/ChroniconSkillMeter.dll'
+          if (-not (Test-Path $dll)) { throw "DLL not produced at $dll" }
+          Write-Host "built $dll"
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChroniconSkillMeter-${{ github.event.inputs.platform || 'x64' }}
+          path: bin/${{ github.event.inputs.platform || 'x64' }}/Release/ChroniconSkillMeter.dll
+          if-no-files-found: error

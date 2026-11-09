@@ -1,0 +1,35 @@
+# ChroniconSkillMeter - skill id -> display name
+#
+# Copy this file to  skill_names.txt  in the SAME folder as ChroniconSkillMeter.dll
+# Format:  id=Name     (also accepts  id|Name)
+# Encoding: UTF-8. Use LATIN characters only - Chronicon's HUD font
+#           (font_small_GUI_latin) cannot render CJK glyphs.
+#
+# ---------------------------------------------------------------------------
+# Why is this file needed?
+# The game hands us a numeric skill id on every damage event, so grouping by
+# skill is exact even without names. Unknown ids show up as "Skill #12".
+#
+# How to fill it in:
+#   1. Play for a few minutes with the overlay open.
+#   2. Press F9 (or wait ~30 s) -> unknown_skills.txt is written next to the
+#      DLL, listing every id that has dealt damage.
+#   3. Use ONE skill at a time and watch which row's numbers go up.
+#   4. Write the label next to that id here, save, restart the game (or edit
+#      the file and let the next probe pick it up).
+#
+# If the game exposes a skill-name script, the mod also learns names passively
+# (learnSkillNames = 1). That is best effort only; this file always wins.
+# ---------------------------------------------------------------------------
+#
+# Reserved ids (do not reuse):
+#   -1  weapon hits / procs / item effects with no skill
+#   -2  minions and other non-player sources (only when countMinions = 1)
+#
+# Example lines - these ids are placeholders, use the ones from YOUR game:
+#
+# 12=Frost Nova
+# 18=Chain Lightning
+# 27=Meteor
+# 41=Holy Bolt
+# 63=Blessed Hammer

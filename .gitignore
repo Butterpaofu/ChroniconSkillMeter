@@ -1,0 +1,22 @@
+# MSBuild / Visual Studio outputs
+bin/
+obj/
+dist/
+.vs/
+*.user
+*.suo
+*.aps
+*.pch
+*.VC.db
+*.VC.opendb
+
+# Third-party headers (recreated by fetch_deps.bat or by the Actions workflow)
+extern/YYToolkit/
+extern/Aurie/
+extern/FunctionWrapper/
+
+# Files the mod writes at runtime
+skillmeter.ini
+unknown_skills.txt
+damage_log.csv
+skill_names.txt
