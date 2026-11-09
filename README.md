@@ -390,6 +390,87 @@ Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000} -MaxEvents 5 |
   ForEach-Object { $_.Message } | Select-String -Pattern 'Chronicon|YYToolkit|Aurie|0xc0000005'
 ```
 
+### 3.9 游戏能进、不闪退，但看不到统计窗口
+
+这是闪退修好之后最容易卡住的一步，现象通常是：
+
+- 游戏正常进图、能打怪，按 **F5** 没反应；
+- 画面左上角那一堆 `FPS:` / `OSMC:` / `OSID:` / `WV:` / `UI:` / `display:` 还在——**那是 Chronicon 自带的调试 HUD**（字符串就在 `data.win` 里），跟本插件、跟 YYToolkit 都无关，别拿它判断 mod 有没有加载；
+- `mods\aurie\` 里**没有生成 `skillmeter.ini`**，也没有 `unknown_skills.txt` / `damage_log.csv`；
+- 游戏根目录下的 `YYToolkit.log` 时间戳还是旧的。注意 **YYToolkit v3.2.3 根本不写这个文件**（它只有标题为 `YYToolkit Log` 的控制台窗口），所以「日志没更新」不能证明 mod 没加载。
+
+「连 ini 都没写」是最强的线索：`Config::Load()` 在 `ModuleInitialize` 里，只要它跑过就一定会落一份默认 ini。没落 = 我们的模块入口没跑到那一步。
+
+#### 根因：Aurie v1.0.5 会把初始化失败的模块直接卸载
+
+对着 Aurie v1.0.5 的 `Aurie/source/AurieMain.cpp` 和 `Module Manager/module.cpp` 看一遍，加载时序是这样的：
+
+1. `ArProcessAttach` 先把 `mods\aurie\*.dll` **全部** `LoadLibraryW` 进来（按文件名排序，此时不执行任何入口）；
+2. 再遍历所有模块调用 `ModulePreinitialize`——YYToolkit 就在这里 `ObCreateInterface("YYTK_Main")`；
+3. 恢复进程、等游戏窗口进入 idle；
+4. 最后才遍历所有模块调用 `ModuleInitialize`，**返回值非 `AURIE_SUCCESS` 的模块会被立刻标记 purge 并 `FreeLibrary`**。
+
+旧版 `ModuleInitialize` 第一行就是：
+
+```cpp
+if (!AurieSuccess(ObGetInterface("YYTK_Main", ...)))
+    return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;   // ← 致命：直接被卸载，且没有任何日志
+```
+
+只要接口在那一刻还没就绪（框架版本差异、加载时序、YYToolkit 自身初始化失败都会导致），插件就**静默消失**：不写 ini、不挂 Hook、不画窗口，游戏却一切正常。这类失败最难受的地方就是它完全不留痕迹。
+
+#### 现在的做法
+
+`ModuleMain.cpp` 已改成：
+
+- 新增 `ModulePreinitialize` / `ModuleUnload` 导出；
+- **入口永远返回 `AURIE_SUCCESS`**，绝不因为依赖未就绪让 Aurie 卸载自己；
+- 在 `ModulePreinitialize` 阶段就先写好 `skillmeter.ini`，**只要 DLL 被加载就一定留痕**；
+- `YYTK_Main` 拿不到时只记一条日志，然后由后台线程在 150 秒内每 250 ms 重试，拿到后再装 Hook；
+- Hook 安装、首次 GML 调用、第一帧绘制、第一次伤害都写在 **`mods\aurie\skillmeter_diag.log`** 里；
+- GML 内置函数（`instance_find`、`variable_global_get` 等）统一挪到 `gml_Script_GUIdraw` 里、也就是游戏主线程上调用，避免跨线程调引擎。
+
+`data.win` 里已核对过两个 Hook 目标确实存在：`gml_Script_actorDamage`、`gml_Script_GUIdraw`（前者 2 处、后者 47 处），所以不是脚本名写错。
+
+#### 一次启动就能定位：读 `skillmeter_diag.log`
+
+把新 DLL 放进 `mods\aurie\`，启动游戏进图、打几下怪、正常退出，然后：
+
+```powershell
+Get-Content "D:\SteamLibrary\steamapps\common\Chronicon\mods\aurie\skillmeter_diag.log" -Tail 60
+```
+
+正常的话应该依次看到：
+
+```text
+dll_process_attach        模块映像已映射
+module_preinitialize      dir=...\mods\aurie
+config_early              ini=...\skillmeter.ini
+retry_thread              started
+module_initialize         dir=...\mods\aurie
+setup_begin               YYTK_Main 已解析
+script_lookup             actorDamage=0x... GUIdraw=0x...
+hooks                     actorDamage hook=1 GUIdraw hook=1
+setup_done                module is live
+gui_hook_first_frame      GUIdraw hook is alive
+damage_hook_first_hit     first damage: skill=...
+```
+
+按最后停在哪一行判断：
+
+| 最后一行 | 说明 | 下一步 |
+|---|---|---|
+| 文件根本不存在 | DLL 没被 `LoadLibrary`，问题在 `mods\native\AurieCore.dll` 有没有被注入 | 查 3.7 的 IFEO；跑一次 `install_runtime.ps1` 重装固定版 |
+| 只有 `dll_process_attach` | 进了进程但 Aurie 没派发入口 | 检查 `mods\aurie` 里是否同时有 `YYToolkit.dll v3.2.3`、位数是否 x64 |
+| 到 `module_preinitialize` 但没有 `module_initialize` | Aurie 卡在 `WaitForInputIdle` | 后台重试线程仍会尝试；看有没有 `retry_poll` / `setup_begin` |
+| 有 `setup_deferred` / 一路 `retry_timeout` | `YYTK_Main` 始终没注册 | YYToolkit 版本不匹配（回到 3.8），或用 `-UseControl` 做 A/B |
+| `script_lookup` 里指针是 `0000000000000000` | YYToolkit 的 runner interface 没就绪，脚本表拿不到 | 看 YYToolkit 控制台报错；优先确认 3.8 的版本组合 |
+| `hooks` 里 `GUIdraw hook=0` | Hook 没装上，窗口不会画 | 把整份日志贴出来，通常是框架/游戏版本差异 |
+| 有 `gui_hook_first_frame` 但没窗口 | Hook 正常，问题在绘制或 `skillmeter.ini` 的 `visible=0` / 窗口坐标 | 按 F5 切一次；检查 ini 的 `x` / `y` / `width` / `height` |
+| 没有 `damage_hook_first_hit` | 伤害 Hook 没命中或玩家来源判断没过 | 确认 `Display Numbers` 无关；本插件不依赖飘字，但依赖 `actorDamage` 的参数顺序 |
+
+诊断日志是**追加**写入的，多次启动会累积；每次都有新的 `dll_process_attach` 作为分界。定位完可以直接删掉这个文件，它会在下次启动时重建。
+
 ---
 
 ## 4. 从源码编译
@@ -507,11 +588,15 @@ extern\FunctionWrapper\FunctionWrapper.hpp
 - ✅ **本机已定位并修复一次真实闪退**：Steam 报「游戏可执行文件缺失」是 IFEO `Debugger` 指向的 `AurieLoader.exe` 未落地（见 3.7）；补齐后出现的 0xc0000005 闪退，经 WER 确认出错模块为 `YYToolkit.dll 4.0.1.0` 偏移 `0x17752`，根因是 v3 头文件编出的插件配 v4 运行时（见 3.8）。现已改成 **Aurie v1.0.5 + YYToolkit v3.2.3 + 本插件 x64**，四个文件均校验为 PE `0x8664`。
 - ✅ **`install_runtime.ps1` 三条路径实跑通过**：普通安装 → `272896 / 606720 / 699904`；`-UseControl` → 只加载官方 `ChroniconDPS.dll`；`-Rollback` → 精确还原 `92160 / 625664 / 1094656`。安装前自动备份到 `_ChroniconSkillMeter_backup\`，未删除任何文件。
 - ✅ **头文件版本已用哈希坐实**：`extern/YYToolkit/Shared.hpp` = `16631db58725`、`Shared.cpp` = `88d2d7490b9c`、`Aurie/shared.hpp` = `15885650ecd4`、`FunctionWrapper.hpp` = `2eec7c5b8aaf`，与 `atty303/chronicon-dps` 的 `ChroniconDPS/include/` git blob SHA 完全一致。
-- ⚠️ **仍未验证**：游戏进程内 Hook 是否命中 `gml_Script_actorDamage` / `gml_Script_GUIdraw`、窗口是否显示、技能伤害是否按 ID 正确归因。修复后需要**重新启动一次游戏**才能确认，这部分只能在你看到画面后验。引擎侧调用是对照 `atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus` 源码核对的，游戏版本差异可能导致脚本名/参数顺序不同。若仍闪退，按 3.8 的 `-UseControl` 做 A/B 对照。
+- ✅ **本机实机状态已确认**：换成 `Aurie v1.0.5 + YYToolkit v3.2.3` 后，游戏能正常进图、不再闪退，13:20 的 Steam 会话 `exit code 0`，且 13:20 之后没有任何新的 WER / `Application Error`。
+- ✅ **Hook 目标脚本名已在本机 `data.win` 中核对**：`gml_Script_actorDamage`（2 处）、`gml_Script_GUIdraw`（47 处）、`gml_Script_floatNumCreate`、`obj_player`、`font_small_GUI_latin` 全部真实存在。
+- ✅ **截图里的调试文字已排除误判**：`FPS:` / `OSMC:` / `OSID:` / `WV:` / `UI:` / `display:` 是 Chronicon 自带 HUD（字符串在 `data.win` / `Chronicon.exe`），YYToolkit v3.2.3 也不写 `YYToolkit.log`，两者都不能用来判断 mod 是否加载。
+- ✅ **已定位「不闪退但没窗口」的根因**：旧 `ModuleInitialize` 在 `YYTK_Main` 未就绪时返回 `AURIE_MODULE_DEPENDENCY_NOT_RESOLVED`，被 Aurie v1.0.5 静默 purge，因此全盘都没有 `skillmeter.ini`。详见 3.9，已改为永不失败 + 后台重试 + 全程 `skillmeter_diag.log` 留痕。
+- ⚠️ **仍未验证**：新 DLL 在游戏进程内 Hook 是否命中、窗口是否显示、技能伤害是否按 ID 正确归因。这部分只能在你把新 DLL 放进 `mods\aurie\` 并重新启动一次游戏后，按 3.9 读 `skillmeter_diag.log` 确认。引擎侧调用是对照 `atty303/chronicon-dps`、`falorfrozen-cmd/ChroniconPlus` 源码核对的，游戏版本差异可能导致参数顺序不同。若仍闪退，按 3.8 的 `-UseControl` 做 A/B 对照。
 - `extern/` 的 4 个依赖头文件已通过 GitHub contents API 实际下载并解码成功（73619 / 7585 / 16118 / 2114 B）。`fetch_deps.ps1` 三条通道都实测过：raw 直连成功、`curl.exe` + API 回退成功、PowerShell 5.1 直连 API 会 403（已用前两条绕开）。
 - 本机 `curl` 连续请求 raw 偶发 `schannel: server closed abruptly`，因此工作流加了 `--retry 3` 与 API 回退；GitHub runner 使用不同 TLS 栈，实测四个头文件均一次下载成功。
 - 安装章节（第 3 节）已按 Aurie `v1.0.5` / `v1.2.1` / `v2.0.2`、YYToolkit `v3.2.3` / `v4.0.1` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对；`mods\` 目录的离线补齐与降级已在**本机游戏目录实际执行并校验文件尺寸 / PE 头 / IFEO 路径**。
-- 结论：**DLL 已经用 GitHub Actions 编出来了，运行时版本组合也已在本机装好**；剩下唯一没做的是重新启动游戏，确认 Hook 命中与窗口显示。
+- 结论：**DLL 已经用 GitHub Actions 编出来了，运行时版本组合也已在本机装好，闪退已解决**；剩下的是把带诊断的新 DLL 放进去、重新启动游戏，用 `skillmeter_diag.log` 确认 Hook 命中与窗口显示。
 
 ---
 

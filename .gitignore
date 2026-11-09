@@ -17,6 +17,7 @@ extern/FunctionWrapper/
 
 # Files the mod writes at runtime
 skillmeter.ini
+skillmeter_diag.log
 unknown_skills.txt
 damage_log.csv
 skill_names.txt
