@@ -97,6 +97,8 @@ v2 的 release notes 里明确写了 `Removed AurieLoader`、`Added support for 
 5. 点右侧 **`Add Mods`** → 选择 `ChroniconSkillMeter.dll`。
 6. 启动游戏，按 **F5** 显示 / 隐藏窗口。
 
+> ⚠️ `Install Aurie` 会从 GitHub **联网下载**组件（`AurieLoader.exe`、`AurieCore.dll`、`YYToolkit.dll`）。国内网络常常下载失败：此时界面可能没报错，但注册表已经写好、文件却没落地，游戏就再也启动不了，报「启动游戏错误：游戏可执行文件缺失」。见 **3.7** 的诊断与离线补齐方法。
+
 ### 3.3 路线 B（进阶）：当前 v2.x
 
 v2 没有管理器 UI，是给 `Chronicon.exe` **原地打补丁**。⚠️ **先复制一份 `Chronicon.exe` 备份**，patcher 会直接改写这个文件。
@@ -254,6 +256,56 @@ git push -u origin main
 | 报错 `'m_Object': is not a member of 'YYTK::CInstance'` | 旧版源码直接读了 GameMaker 内部结构。当前版本已改为通过 `variable_instance_get` / `asset_get_index` 等 GML 内建函数判断，不要回退这段改动 |
 | 要两个平台的 DLL | 默认 push 出 x64，再手动 `Run workflow` 选 `Win32` 各跑一次 |
 | 推送报 TLS / `schannel` 错误 | 重试；或改用 GitHub Desktop / 网页上传（注意 `.github` 是隐藏目录） |
+
+### 3.7 Steam 报「启动游戏错误：游戏可执行文件缺失」
+
+**这既不是 DLL 的问题，也不是游戏文件损坏**，而是 Aurie v1 的 **IFEO 启动劫持残留**。`Install Aurie` 会写：
+
+```
+HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Chronicon.exe
+  UseFilter = 1, IsAurieInstallerKey = 1
+  子键 D:_SteamLibrary_steamapps_common_Chronicon_Chronicon.exe   (路径把 \ 换成 _)
+    FilterFullPath = D:\SteamLibrary\steamapps\common\Chronicon\Chronicon.exe
+    Debugger       = D:\SteamLibrary\steamapps\common\Chronicon\mods\AurieLoader.exe
+```
+
+Windows 每次启动 `Chronicon.exe` 都会先执行 `Debugger` 指向的 loader。一旦 `mods\` 目录不存在（联网下载失败、手动删除、Steam 更新清理），Windows 找不到这个 exe，Steam 就报「游戏可执行文件缺失」——**哪怕 `Chronicon.exe` 本身完好无损**。
+
+自查（PowerShell）：
+
+```powershell
+$k = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Chronicon.exe"
+Get-ChildItem $k -Recurse | ForEach-Object {
+  $i = Get-Item $_.PSPath
+  $d = $i.GetValue('Debugger')
+  "Debugger = $d"
+  "Exists   = $(Test-Path -LiteralPath $d)"
+}
+```
+
+`Debugger` 有值但 `Exists = False` 就是它。
+
+**修复二选一：**
+
+- **A. 只想恢复原版**：运行 `AurieManager.exe` → 选中 Chronicon → **`Uninstall Aurie`**，清掉 IFEO 即可。
+- **B. 继续用 mod（离线补齐）**：按下面结构放好 4 个文件，让 `Debugger` 目标存在。`AurieLoader` 的 `MapFolder` 会注入 `mods\native\*.dll`，`AurieCore` 再加载 `mods\aurie\*.dll`。
+
+```
+Chronicon/
+├─ Chronicon.exe
+└─ mods/
+   ├─ AurieLoader.exe              ← Aurie v1.2.1 release（IFEO Debugger 指向它）
+   ├─ native/
+   │   └─ AurieCore.dll           ← v1.2.1 的 x64 版，不是 AurieCore-x86.dll
+   └─ aurie/
+       ├─ YYToolkit.dll           ← YYToolkit v4.0.1 x64（与 v1.2.1 同日发布）
+       └─ ChroniconSkillMeter.dll ← 本项目 x64 产物
+```
+
+组件来源：`AurieLoader.exe` / `AurieCore.dll` 来自 [Aurie v1.2.1](https://github.com/AurieFramework/Aurie/releases/tag/v1.2.1)；`YYToolkit.dll` 来自 [YYToolkit v4.0.1](https://github.com/AurieFramework/YYToolkit/releases/tag/v4.0.1)（1094656 B）；`ChroniconSkillMeter.dll` 来自 Actions Artifact 或本地 `dist\`。
+
+> ⚠️ **版本与位数必须配套**：v2.x 的 `AurieCore.dll` + v5.x 的 `YYToolkit.dll` 与本项目头文件不匹配。Chronicon 是 x64（PE machine `0x8664`），四个文件都要 x64。
+> ⚠️ Steam 每次「验证游戏文件完整性」或游戏更新都可能抹掉这些文件；更新后若又报同样错误，重做 B 或先 A 再重新 `Install Aurie`。
 
 ---
 
