@@ -96,7 +96,7 @@ void Overlay::ResetStats() {
 
 void Overlay::Export(std::uint64_t nowMs, bool quiet) {
     {
-        std::ofstream out(cfg_.csvPath, std::ios::trunc | std::ios::binary);
+        std::ofstream out(cfg_.csvPath.c_str(), std::ios::trunc | std::ios::binary);
         if (out) out << meter_.Csv(cfg_.View(), names_.Table());
     }
     names_.SaveUnknown(cfg_.unknownPath);

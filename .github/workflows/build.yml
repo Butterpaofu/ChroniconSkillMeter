@@ -43,8 +43,31 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Build
+        id: build
         shell: cmd
-        run: msbuild ChroniconSkillMeter.sln /m /nologo /v:minimal /p:Configuration=Release /p:Platform=${{ github.event.inputs.platform || 'x64' }}
+        run: msbuild ChroniconSkillMeter.sln /m /nologo /v:minimal /fl "/flp:logfile=msbuild.log;verbosity=normal;encoding=UTF-8" /p:Configuration=Release /p:Platform=${{ github.event.inputs.platform || 'x64' }}
+
+      # Compiler errors are also published as check-run annotations, so they can
+      # be read without downloading the (private-by-default) job log.
+      - name: Report compiler errors
+        if: failure() && steps.build.outcome == 'failure'
+        shell: pwsh
+        run: |
+          if (Test-Path msbuild.log) {
+            $errors = Get-Content msbuild.log | Where-Object { $_ -match 'error [A-Z]+[0-9]+' } | Select-Object -Unique -First 40
+            foreach ($line in $errors) { Write-Output "::error::$($line.Trim())" }
+            Write-Output "::notice::Full MSBuild log is attached as the build-log artifact."
+          } else {
+            Write-Output "::error::MSBuild failed before producing msbuild.log"
+          }
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: msbuild.log
+          if-no-files-found: warn
 
       - name: Verify DLL exists
         shell: pwsh

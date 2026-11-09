@@ -53,6 +53,13 @@ struct Context {
 };
 std::unique_ptr<Context> g_Ctx;
 
+// Resolved once; asset_get_index returns -1 when the object does not exist.
+double PlayerObjectIndex() {
+    static double idx = -2.0;
+    if (idx == -2.0) idx = gml::Asset("obj_player");
+    return idx;
+}
+
 // --------------------------------------------------------------- damage hook
 
 RValue& HookActorDamage(CInstance* Self, CInstance* Other, RValue& Result,
@@ -67,9 +74,16 @@ RValue& HookActorDamage(CInstance* Self, CInstance* Other, RValue& Result,
     std::string target;
 
     if (g_Ctx && Count >= 5 && Self && Args && Args[0] && Args[4]) {
-        const char* selfName =
-            (Self->m_Object && Self->m_Object->m_Name) ? Self->m_Object->m_Name : "";
-        const bool toPlayer = (std::strcmp(selfName, "obj_player") == 0);
+        // YYToolkit hides CInstance's layout behind YYTK_DEFINE_INTERNAL, and
+        // that layout changes between GameMaker versions. Never dereference
+        // Self->m_Object here: ask the engine through GML instead.
+        const double selfObj = gml::Call(
+            "variable_instance_get", {RValue(Self), RValue("object_index")}).AsReal();
+        const double selfId = gml::Call("real", {RValue(Self)}).AsReal();
+        const double playerObj = PlayerObjectIndex();
+        const bool toPlayer =
+            (playerObj >= 0.0 && selfObj == playerObj) ||
+            (g_Ctx->playerRef >= 0.0 && selfId == g_Ctx->playerRef);
 
         // Chronicon passes the attacker as an instance reference; GML's real()
         // turns it into the numeric id we compare against the player ref.
@@ -93,7 +107,7 @@ RValue& HookActorDamage(CInstance* Self, CInstance* Other, RValue& Result,
                                      {RValue(Self), RValue("name")});
             target = gml::Text(shown);
             if (target.empty() || target == "undefined" || target.size() > 64)
-                target = selfName;
+                target = "Enemy";
         }
     }
 

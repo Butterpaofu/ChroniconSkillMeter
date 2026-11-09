@@ -26,7 +26,7 @@ bool LooksLikeAName(const std::string& s) {
 } // namespace
 
 void SkillNames::Load(const std::wstring& path) {
-    std::ifstream in(path);
+    std::ifstream in(path.c_str());
     if (!in) return;
     std::string line;
     bool first = true;
@@ -91,7 +91,7 @@ void SkillNames::ProbeGlobals() {
 
 bool SkillNames::SaveUnknown(const std::wstring& path) const {
     if (unknown_.empty()) return false;
-    std::ofstream out(path, std::ios::trunc | std::ios::binary);
+    std::ofstream out(path.c_str(), std::ios::trunc | std::ios::binary);
     if (!out) return false;
     out << "# Skills seen without a name. Fill in the labels, then copy these\n"
            "# lines into skill_names.txt (UTF-8, latin glyphs only - the game\n"

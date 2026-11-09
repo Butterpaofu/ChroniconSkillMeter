@@ -18,7 +18,7 @@ std::string Trim(const std::string& s) {
 
 Ini ReadIni(const std::wstring& path) {
     Ini out;
-    std::ifstream in(path);
+    std::ifstream in(path.c_str());
     if (!in) return out;
     std::string line;
     bool first = true;
@@ -57,7 +57,7 @@ void GetBool(const Ini& ini, const char* key, bool& out) {
 }
 
 void WriteDefaultIni(const std::wstring& path) {
-    std::ofstream out(path);
+    std::ofstream out(path.c_str());
     if (!out) return;
     out << "# ChroniconSkillMeter settings. Edit while the game is closed.\n"
            "# Coordinates are in a virtual 960x540 HUD space.\n\n"
@@ -95,7 +95,7 @@ Config Config::Load(const std::wstring& moduleDir) {
     c.unknownPath = Join(moduleDir, L"unknown_skills.txt");
     c.csvPath = Join(moduleDir, L"damage_log.csv");
 
-    std::ifstream probe(c.iniPath);
+    std::ifstream probe(c.iniPath.c_str());
     if (!probe) WriteDefaultIni(c.iniPath);
     probe.close();
 
@@ -145,7 +145,7 @@ Config Config::Load(const std::wstring& moduleDir) {
 }
 
 void Config::Save() const {
-    std::ofstream out(iniPath, std::ios::trunc);
+    std::ofstream out(iniPath.c_str(), std::ios::trunc);
     if (!out) return;
     out << "# ChroniconSkillMeter settings (window state is saved on exit)\n"
         << "x = " << static_cast<int>(x) << "\n"

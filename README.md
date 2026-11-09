@@ -250,6 +250,8 @@ git push -u origin main
 | `push` 报 `rejected` / `non-fast-forward` | 建仓时勾了 README。执行 `git pull --rebase origin main` 后重新 `git push -u origin main` |
 | Actions 里看不到 `Build DLL` | 确认 `.github/workflows/build.yml` 在仓库根目录的这一路径；再去 `Settings` → `Actions` → `General` → 选 `Allow all actions and reusable workflows` |
 | 编译报 `C1083: Cannot open include file` | 看 `Fetch YYToolkit / Aurie headers` 那步的日志；工作流已带 raw 三次重试 + GitHub API 回退 |
+| `Build` 步骤红叉、只显示 `Process completed with exit code 1.` | 现在会把 MSVC 的 `error Cxxxx` 原样发成 **Annotations**，并额外上传 **`build-log`** artifact（`msbuild.log`）。点开运行的 Annotations 或下载该 artifact 就能看到具体报错 |
+| 报错 `'m_Object': is not a member of 'YYTK::CInstance'` | 旧版源码直接读了 GameMaker 内部结构。当前版本已改为通过 `variable_instance_get` / `asset_get_index` 等 GML 内建函数判断，不要回退这段改动 |
 | 要两个平台的 DLL | 默认 push 出 x64，再手动 `Run workflow` 选 `Win32` 各跑一次 |
 | 推送报 TLS / `schannel` 错误 | 重试；或改用 GitHub Desktop / 网页上传（注意 `.github` 是隐藏目录） |
 

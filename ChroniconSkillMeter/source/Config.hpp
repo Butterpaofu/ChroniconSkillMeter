@@ -11,7 +11,9 @@
 struct Config {
     // Window
     double x = 18.0, y = 96.0, w = 420.0, h = 336.0;
-    int rowHeight = 22;
+    // double, not int: this value is used to brace-initialise gml::Rect, whose
+    // members are double. An int here triggers MSVC C2397 (narrowing conversion).
+    double rowHeight = 22.0;
     int maxRows = 10;
     bool visible = true;
     int view = 0;              // 0 = current fight, 1 = overall, 2 = previous
