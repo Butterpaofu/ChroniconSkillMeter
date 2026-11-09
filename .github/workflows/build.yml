@@ -24,10 +24,18 @@ jobs:
         shell: bash
         run: |
           set -e
-          base="https://raw.githubusercontent.com/atty303/chronicon-dps/main/ChroniconDPS/include"
+          raw="https://raw.githubusercontent.com/atty303/chronicon-dps/main/ChroniconDPS/include"
+          api="https://api.github.com/repos/atty303/chronicon-dps/contents/ChroniconDPS/include"
           for f in YYToolkit/Shared.hpp YYToolkit/Shared.cpp Aurie/shared.hpp FunctionWrapper/FunctionWrapper.hpp; do
             mkdir -p "extern/$(dirname "$f")"
-            curl -fsSL "$base/$f" -o "extern/$f"
+            if ! curl -fsSL --retry 3 --retry-delay 2 "$raw/$f" -o "extern/$f"; then
+              echo "raw failed for $f, falling back to GitHub contents API"
+              curl -fsSL --retry 3 --retry-delay 2 \
+                -H "Accept: application/vnd.github.raw" \
+                -H "User-Agent: ChroniconSkillMeter-build" \
+                "$api/$f?ref=main" -o "extern/$f"
+            fi
+            test -s "extern/$f"
             echo "fetched $f ($(wc -c < "extern/$f") bytes)"
           done
 

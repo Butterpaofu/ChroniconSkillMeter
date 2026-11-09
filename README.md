@@ -61,7 +61,7 @@ gml_Script_actorDamage(dmg, crit, element, trigger, attacker, skill)
 **拿到 DLL 的三条路：**
 
 1. **本地编译（推荐）**：装 [VS 2022 Community](https://visualstudio.microsoft.com/zh-hans/vs/community/)（勾选「使用 C++ 的桌面开发」+ Windows 10/11 SDK），然后双击 **`build.bat`**（默认 x64；32 位游戏用 `build.bat Win32`）。脚本会自动检查依赖、定位 MSBuild、编译，最后把 DLL 复制到 `dist\` 并打印完整路径。
-2. **云端编译（本机装不了 VS 时）**：把项目推到自己的 GitHub 仓库，`.github/workflows/build.yml` 会在 `windows-2022` runner 上编译。进 **Actions → Build DLL → Run workflow**，选 `x64` / `Win32`，跑完在 **Artifacts** 里下载 `ChroniconSkillMeter.dll`。本地不需要装任何开发工具。
+2. **云端编译（本机装不了 VS 时）**：把项目推到自己的 GitHub 仓库，`push` 会自动触发 `.github/workflows/build.yml`，在 `windows-2022` runner 上编译，跑完在 **Artifacts** 里下载 `ChroniconSkillMeter.dll`。本地不需要装任何开发工具。**完整手把手步骤见 3.6**（本地仓库已初始化好，只差建仓 + 推送）；32 位游戏用 `Run workflow` 选 `Win32`。
 3. **让别人代编**：把整个项目目录发给有 VS2022 的人，跑一次 `build.bat`，把 `dist\` 里的 DLL 发回来即可。
 
 > 生成这个项目的机器**没有安装任何 C++ 编译器 / Windows SDK**，因此无法在这里预先编译好 DLL。但 `extern/` 下 4 个依赖头文件**已经预先拉好**，你在自己机器上装完 VS 可以直接离线编译。`fetch_deps.ps1` 还加了 `curl.exe` + GitHub contents API 双回退并显式设置 TLS 1.2——`raw.githubusercontent.com` 连不上、或 Windows PowerShell 5.1 的 .NET 网络栈被 403 拦截时会自动换通道（两条通道均已实测）。
@@ -151,6 +151,65 @@ switch ($machine) { 0x8664 { "64-bit -> Release|x64 + AurieCore.dll" } 0x14C { "
 或者：启动游戏后在任务管理器 → 详细信息，进程名后带 `(32 位)` 即为 x86。参考项目 chronicon-dps 同时提供 Win32 / x64 两套配置，本项目 `.sln` 也已补上 `Win32` / `x64` 两套，按上表选对应配置编译即可。
 
 > 游戏版本：本项目依据 Chronicon 1.5x 的 GML 脚本名编写。若游戏大版本更新导致脚本改名，窗口能出来但没有数据，请看第 8 节排查。
+
+### 3.6 云端编译：从推送到下载 DLL 的完整步骤
+
+**已经替你做好的部分**（不用重做）：项目目录已 `git init` 并建好首个提交，分支 `main`；`.gitignore` 已排除编译产物与第三方头文件；`.github/workflows/build.yml` 已就位；`push_to_github.bat` 把推送压成一条命令。
+
+#### 第 1 步：在 GitHub 网页建一个空仓库
+
+1. 登录 [github.com](https://github.com)（没有账号先注册）。
+2. 右上角 **`+`** → **`New repository`**。
+3. `Repository name` 填例如 `ChroniconSkillMeter`；选 **Public**（Public 的 Actions 完全免费；Private 也行，有每月 2000 分钟免费额度）。
+4. ⚠️ **下面三个都不要勾**：`Add a README file`、`Add .gitignore`、`Choose a license`。仓库必须**完全空**，否则推送会因历史冲突被拒。
+5. 点 **`Create repository`**，在随后页面复制形如 `https://github.com/你的用户名/ChroniconSkillMeter.git` 的 HTTPS 地址。
+
+#### 第 2 步：推送（一条命令）
+
+在 `ChroniconSkillMeter` 文件夹的地址栏输入 `cmd` 回车，执行：
+
+```bat
+push_to_github.bat https://github.com/你的用户名/ChroniconSkillMeter.git
+```
+
+等价的手写命令：
+
+```bat
+git remote add origin https://github.com/你的用户名/ChroniconSkillMeter.git
+git push -u origin main
+```
+
+首次推送会弹 **Git Credential Manager 的浏览器登录窗口**（本机已装），登录授权即可。若窗口没弹出、直接要求输入密码：去 GitHub → `Settings` → `Developer settings` → `Personal access tokens` 生成一个勾选 `repo` 的 token，**用 token 当密码**（GitHub 已不接受账号密码）。
+
+#### 第 3 步：等自动构建
+
+工作流里配了 `push:` 触发，所以**推送完成就自动开始编译**，不用手动点。
+
+1. 打开仓库页 → 顶部 **`Actions`** 标签。
+2. 左侧点 **`Build DLL`**，右侧会看到一次运行（黄色圆点 = 进行中，约 2~5 分钟，首次拉镜像略久）。
+3. 绿色勾 = 成功；红色叉就点进去看日志，把报错贴给我。
+
+> **32 位游戏**：push 默认编 `x64`。需要 Win32 时在 `Build DLL` 页点右侧 **`Run workflow`** → 平台选 **`Win32`** → **`Run workflow`**，等它单独跑完。
+
+#### 第 4 步：下载 DLL
+
+1. 进那次成功的运行页面，往下滚到 **`Artifacts`** 区块。
+2. 点 **`ChroniconSkillMeter-x64`**（或 `-Win32`）下载 zip。
+3. 解压得到 **`ChroniconSkillMeter.dll`**。
+
+#### 第 5 步：装进游戏
+
+把 DLL 放进 `<Chronicon 游戏目录>\mods\aurie\`（见 3.4），或用 `AurieManager` 的 `Add Mods` 选中它；启动游戏按 **F5**。
+
+#### 常见问题
+
+| 现象 | 处理 |
+|---|---|
+| `push` 报 `rejected` / `non-fast-forward` | 建仓时勾了 README。执行 `git pull --rebase origin main` 后重新 `git push -u origin main` |
+| Actions 里看不到 `Build DLL` | 确认 `.github/workflows/build.yml` 在仓库根目录的这一路径；再去 `Settings` → `Actions` → `General` → 选 `Allow all actions and reusable workflows` |
+| 编译报 `C1083: Cannot open include file` | 看 `Fetch YYToolkit / Aurie headers` 那步的日志；工作流已带 raw 三次重试 + GitHub API 回退 |
+| 要两个平台的 DLL | 默认 push 出 x64，再手动 `Run workflow` 选 `Win32` 各跑一次 |
+| 推送报 TLS / `schannel` 错误 | 重试；或改用 GitHub Desktop / 网页上传（注意 `.github` 是隐藏目录） |
 
 ---
 
@@ -267,6 +326,8 @@ extern\FunctionWrapper\FunctionWrapper.hpp
 - 安装章节（第 3 节）已按 Aurie `v1.2.1` / `v2.0.2` 的实际 release 资产与 `AurieMain.cpp`、`AurieInstaller` 源码逐条核对，但这些流程同样**未在本机实机执行**。
 - `extern/` 的 4 个依赖头文件已通过 GitHub contents API **实际下载并解码成功**（`Shared.hpp` 73619 B、`Shared.cpp` 7585 B、`Aurie/shared.hpp` 16118 B、`FunctionWrapper.hpp` 2114 B）。`fetch_deps.ps1` 的三条通道都实测过：raw 直连成功、`curl.exe` + API 回退成功、PowerShell 5.1 直连 API 会 403（已用前两条绕开）。
 - `build.bat` **实机跑到「Locating MSBuild」**：依赖检查通过，并正确报出本机缺 `vswhere.exe` / VS2022；因无编译器，后半段编译与 `dist\` 复制未实机验证。`.github/workflows/build.yml` 经 `pyyaml` 解析校验（6 个步骤、触发器和 shell 均正确），但**未在 GitHub Actions 上实跑**。
+- 云端编译链路已尽量在本地验证：raw 与 `Accept: application/vnd.github.raw` 的 GitHub API 两条通道都实测返回 200 / 2114 B；工作流 YAML 经 `pyyaml` 解析通过；本地已 `git init -b main` 并建好首个提交（24 个文件），分支名与推送命令一致。**GitHub Actions 本身仍未实跑**。
+- 本机 `curl` 连续请求 raw 偶发 `schannel: server closed abruptly`，因此工作流加了 `--retry 3` 与 API 回退；GitHub runner 使用不同 TLS 栈，通常不受影响。本机已装 Git Credential Manager，推送时会弹浏览器登录。
 - 结论：**DLL 必须由你在有 VS2022 的机器上、或用 GitHub Actions 编出来**；本仓库只提供源码与工程。
 
 ---
@@ -278,7 +339,9 @@ ChroniconSkillMeter/
 ├─ README.md                     本文件
 ├─ preview.html                  界面与交互预览（单文件，浏览器打开）
 ├─ build.bat                     一键编译 → dist\ChroniconSkillMeter.dll
+├─ push_to_github.bat            一键推送到你的 GitHub 仓库
 ├─ fetch_deps.bat / .ps1         拉取 YYToolkit / Aurie 头文件（含 API 回退）
+├─ .gitignore                    排除编译产物与第三方头文件
 ├─ .github/workflows/build.yml   云端编译 DLL，产出 Actions Artifact
 ├─ dist\                         编译后生成，DLL 成品固定放这里
 ├─ extern\                       YYToolkit / Aurie 头文件（本副本已预先拉好）
